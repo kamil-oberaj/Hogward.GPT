@@ -1,0 +1,70 @@
+@using Hogward.GPT.Api.Data
+@using Hogward.GPT.Api.Services
+
+@inject IJSRuntime JsRuntime
+@inject ChatService ChatService
+
+<div id="scrollbox">
+    @foreach (var item in _messages)
+    {
+        if (item.IsRequest) 
+        {
+            <div class="sent p-2 m-0 position-relative d-flex justify-content-end">
+                <p class="">@item.Body</p>
+            </div>
+        }
+        else 
+        {
+            <div class="received p-2 m-0 position-relative d-flex justify-content-start">
+                <p class="">@item.Body</p>
+            </div>
+        }
+    }
+</div>
+<hr />
+<button class="btn btn-primary" @onclick="@ClearChat">Clear Chat</button>
+
+
+<EditForm Model="_chatInput" OnValidSubmit="@(SubmitChat)">
+    <textarea id="chattextarea" style="width: 500px; height: 80px;" @bind="@_chatInput.Text" @oninput="@(UpdateTextArea)"></textarea>
+</EditForm>
+
+
+@code {
+
+    private readonly ChatInput _chatInput = new();
+    private List<Message> _messages = new();
+
+    private Task ClearChat()
+    {
+        _messages = new List<Message>();
+        return Task.CompletedTask;
+    }
+
+    private async Task SubmitChat()
+    {
+        await JsRuntime.InvokeAsync<string>("UpdateScroll", "scrollbox");
+        _messages.Add(new Message { Body = _chatInput.Text, IsRequest = true, TimeStamp = DateTime.UtcNow });
+
+        var response = await ChatService.GetResponseAsync(_chatInput.Text);
+        _messages.Add(response);
+        await JsRuntime.InvokeAsync<string>("UpdateScroll", "scrollbox");
+
+        _chatInput.Clear();
+    }
+
+
+
+    private void UpdateTextArea(ChangeEventArgs e)
+    {
+        _chatInput.Text = e.Value!.ToString()!;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await JsRuntime.InvokeAsync<string>("addSubmitOnEnter", "chattextarea");
+        }
+    }
+}
